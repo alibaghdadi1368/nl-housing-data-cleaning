@@ -1,0 +1,12 @@
+# Raw and intermediate data (large, and reproducible from source)
+data/raw/
+data/interim/
+
+# Python
+__pycache__/
+*.pyc
+.DS_Store
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
