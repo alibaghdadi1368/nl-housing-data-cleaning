@@ -14,14 +14,22 @@ print(f"Rows removed:                  {raw.shape[0] - clean.shape[0]}")
 print(f"Columns removed:                {raw.shape[1] - clean.shape[1]}")
 
 
-print("\nFinal descriptive statistics (key_columns):")
-print(clean[["avg_woz_value_k_eur", "dwelling_count", "population",
-             "urbanity_level", "address_density"]].describe())
+KEY = ["avg_woz_value_k_eur", "dwelling_count", "population",
+       "urbanity_level", "address_density"]
 
-print("\nTop 5 most expensive municipalities (avg WOZ value, mean across their neighborhoods):")
+print("\nFinal descriptive statistics (real values):")
+print(clean[KEY].describe())
+
+print("\nTop 5 most expensive municipalities (mean of real neighborhood WOZ values):")
 print(
     clean.groupby("municipality")["avg_woz_value_k_eur"]
     .mean()
     .sort_values(ascending=False)
     .head(5)
 )
+
+print(f"\nTotal population (real values): {clean['population'].sum():,.0f}")
+print(f"Neighborhoods with at least one imputed value: {(clean['imputed_fields'].fillna('') != '').sum():,}")
+
+ownership_sum = clean["pct_owner_occupied"] + clean["pct_rental"]
+print(f"Neighborhoods where owner + rental is more than 2 points off 100%: {((ownership_sum - 100).abs() > 2).sum()}")

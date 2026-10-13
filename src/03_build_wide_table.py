@@ -9,6 +9,8 @@ Measure codes below were confirmed against the real MeasureCodes.csv
 for this specific 2025 export.
 """
 
+import os
+
 import pandas as pd
 
 obs = pd.read_csv(
@@ -59,6 +61,11 @@ numeric_wide = numeric_subset.pivot_table(
 )
 numeric_wide = numeric_wide.rename(columns=NUMERIC_MEASURES)
 
+# warn about measure codes that don't exist (or are empty) in this release
+not_found = sorted(set(NUMERIC_MEASURES) - set(numeric_subset["Measure"].unique()))
+for code in not_found:
+    print(f"WARNING: measure {code} ({NUMERIC_MEASURES[code]}) not found in Observations.csv")
+
 # --- Pivot string measures (uses the 'StringValue' column) ---
 string_subset = obs[obs["Measure"].isin(STRING_MEASURES.keys())]
 string_wide = string_subset.pivot_table(
@@ -71,7 +78,7 @@ string_wide = string_wide.rename(columns=STRING_MEASURES)
 
 # strip trailing whitespace padding seen in the raw StringValue field
 for col in string_wide.columns:
-    string_wide[col] = string_wide[col].astype(str).str.strip()
+    string_wide[col] = string_wide[col].str.strip()
 
 
 # --- Combine into one wide table ---
@@ -94,5 +101,6 @@ print(wide["region_type"].value_counts())
 print("\nSample rows: ")
 print(wide.head(10))
 
+os.makedirs("../data/interim", exist_ok=True)
 wide.to_csv("../data/interim/housing_wide.csv", index=False)
 print("\nSaved to data/interim/housing_wide.csv")

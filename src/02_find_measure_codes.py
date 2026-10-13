@@ -27,5 +27,5 @@ KEYWORDS = [
 for kw in KEYWORDS:
     matches = measures[measures["Title"].str.contains(kw, case=False, na=False)]
     print(f"\n--- '{kw}' ---")
-    for _, row in measures.iterrows():
+    for _, row in matches.iterrows():
         print(f" {row['Identifier']}: {row['Title']}")

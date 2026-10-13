@@ -1,5 +1,5 @@
 """
-diagnostic_check_access_coverage.py
+06_diagnostic_check_access_coverage.py
 Test the hypothesis: are the access/distance measures only reliably
 populated at Wijk (district) level, not Buurt (neighborhood) level?
 Uses the pre-filter wide table (all region types) to compare.

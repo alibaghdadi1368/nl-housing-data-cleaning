@@ -12,7 +12,7 @@ import seaborn as sns
 import os
 
 df = pd.read_csv("../data/interim/neighborhoods_missing_handled_revised.csv")
-os.makedirs("../doc", exist_ok=True)
+os.makedirs("../docs", exist_ok=True)
 
 
 # Unbounded numeric columns -- these are the ones where a handful of
@@ -46,21 +46,23 @@ for col in KEY_COLUMNS:
     plt.close()
 
 
-# Decision: cap (winsorize), don't delete rows. A very high-value
-# Amsterdam neighborhood or a very sparse rural buurt is real data,
-# not an error -- capping limits its distorting effect on aggregate
-# statistics while preserving full geographic coverage of the
-# Netherlands in the final dataset.
+# Decision: keep the real values, and add a capped (winsorized) copy in a
+# separate *_capped column for statistics that are sensitive to extremes.
+# A very high-value Amsterdam neighborhood or a very sparse rural buurt is
+# real data, not an error, so the original column is never overwritten.
 for col in KEY_COLUMNS:
     lower, upper = iqr_bounds(df[col].dropna())
-    df[col] = df[col].clip(lower=lower, upper=upper)
+    df[f"{col}_capped"] = df[col].clip(lower=lower, upper=upper)
 
     plt.figure(figsize=(6, 3))
-    sns.boxplot(x=df[col])
+    sns.boxplot(x=df[f"{col}_capped"])
     plt.title(f"After capping: {col}")
     plt.tight_layout()
     plt.savefig(f"../docs/after_{col}.png")
     plt.close()
+
+# postcode is an identifier, not a number: 9712.0 -> "9712" (missing stays empty)
+df["postcode"] = df["postcode"].astype("Int64").astype("string")
 
 os.makedirs("../data/processed", exist_ok=True)
 df.to_csv("../data/processed/nl_housing_clean.csv", index=False)

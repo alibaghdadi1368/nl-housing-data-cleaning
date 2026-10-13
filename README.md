@@ -20,13 +20,15 @@ for districts and neighborhoods), table **86165NED**.
 1. Loads CBS's raw export and reshapes it from a long (EAV) format
    into an analysis-ready wide table
 2. Selects 21 measures relevant to housing: location, price, housing
-   stock, ownership type, and accessibility
+   stock, ownership type, and accessibility (a 22nd, standardized
+   income, turned out not to exist in the 2025 release)
 3. Filters to neighborhood (*buurt*) level: 14,729 neighborhoods
 4. Investigates and treats missing values, including a real data
    availability gap discovered along the way (see below)
-5. Detects and treats outliers using the IQR method, with
-   before/after visualizations
-6. Produces a clean, 14,729-row analysis-ready CSV
+5. Detects outliers using the IQR method and adds capped copies of
+   the affected columns, with before/after visualizations
+6. Produces a clean, 14,729-row analysis-ready CSV that keeps the real
+   values and marks every imputed one
 
 ## 🧭 The Real Data Pipeline (and the problems solved along the way)
 
@@ -111,16 +113,28 @@ municipalities). Re-running the pipeline with the corrected logic
 recovered all of those neighborhoods: **0 rows were dropped** in the
 final version.
 
-### 6. Outliers: capped, not deleted
+### 6. Outliers: flagged and capped in separate columns
 
 Using the IQR method on the five remaining unbounded numeric columns
 (WOZ value, dwelling count, population, population density, address
 density), 2.5%–5.7% of neighborhoods were flagged as outliers in
-each column. These were **capped (winsorized) rather than deleted**:
-a very expensive Amsterdam-canal neighborhood or a nearly-empty rural
-buurt is real data, not an error, so capping limits its distorting
-effect on aggregate statistics while keeping full national coverage
-in the final dataset.
+each column. A very expensive Amsterdam-canal neighborhood or a
+nearly-empty rural buurt is real data, not an error, so nothing is
+deleted and the original columns are never overwritten. The capped
+(winsorized) values go into separate `*_capped` columns, for statistics
+that are sensitive to extremes.
+
+My first version overwrote the original columns with the capped values.
+That quietly changed the data: hundreds of neighborhoods ended up with
+exactly the same "maximum" WOZ value and population, the national
+population total came out at 16.4 million instead of 18.0 million, and the most expensive municipality in the ranking was simply sitting on the cap.
+Keeping both versions fixed that.
+
+### 7. Marking what was estimated
+
+Every value filled in by the municipality-median rule is listed in an
+`imputed_fields` column (for example `avg_woz_value_k_eur;pct_rental`),
+so anyone using the file can separate measured values from estimates.
 
 ## 📈 Final Results
 
@@ -130,17 +144,19 @@ in the final dataset.
 | Total measures available | 438 |
 | Wide table, all region levels | 18,495 rows × 23 columns |
 | Neighborhood-level (Buurt) | 14,729 rows × 22 columns |
-| After missing-value handling | 14,729 rows × 17 columns (0 rows dropped) |
-| After outlier capping | 14,729 rows × 17 columns |
-| Average WOZ property value (mean) | €437,932 |
+| After missing-value handling | 14,729 rows × 18 columns (0 rows dropped) |
+| Final dataset (with `*_capped` columns) | 14,729 rows × 23 columns |
+| Neighborhoods with at least one imputed value | 1,838 |
+| Total population (real values) | 18,044,120 |
+| Average WOZ property value (mean) | €444,994.195 |
 | Average WOZ property value (median) | €418,000 |
 
 **Top 5 most expensive municipalities** (mean neighborhood WOZ value):
-1. Rozendaal: €784,500
-2. Laren (NH.): €770,800
-3. Blaricum: €746,222
-4. Ouder-Amstel: €723,357
-5. Wassenaar: €696,548
+1. Laren (NH.)     1188.400000
+2. Blaricum        1038.833333
+3. Wassenaar        965.809524
+4. Bloemendaal      863.454545
+5. Ouder-Amstel     823.142857
 
 (All well-known high-income Dutch municipalities; a solid sanity
 check that the pipeline produced sensible results.)
@@ -156,9 +172,9 @@ check that the pipeline produced sensible results.)
 | `src/05_handling_missing.py` | First missing-value pass (two-tier rule) |
 | `src/06_diagnostic_check_access_coverage.py` | Diagnostic that disproved the granularity theory |
 | `src/07_handling_missing_revised.py` | Corrected three-tier missing-value handling |
-| `src/08_handle_outliers.py` | IQR-based outlier detection and capping |
+| `src/08_handle_outliers.py` | IQR-based outlier detection; capped copies in `*_capped` columns |
 | `src/09_summary_report.py` | Before/after summary statistics |
-| `data/processed/nl_housing_clean.csv` | Final cleaned dataset (14,729 × 17) |
+| `data/processed/nl_housing_clean.csv` | Final cleaned dataset (14,729 × 23) |
 | `docs/` | Before/after outlier boxplots |
 
 `data/raw/` and `data/interim/` are excluded via `.gitignore`; they're
@@ -171,7 +187,7 @@ conda create -n housing python=3.10 -y
 conda activate housing
 pip install -r requirements.txt
 
-mkdir -p data/raw
+mkdir -p data/raw data/interim
 curl -L -A "Mozilla/5.0" -o data/raw/86165NED.zip "https://datasets.cbs.nl/CSV/CBS/nl/86165NED"
 cd data/raw && unzip 86165NED.zip && cd ../../src
 
@@ -186,14 +202,14 @@ python 08_handle_outliers.py
 python 09_summary_report.py
 ```
 
+`05_handling_missing.py` and `06_diagnostic_check_access_coverage.py` are
+kept to document the first attempt and the diagnostic; the final pipeline
+uses `07`. Running them is harmless.
+
 ## 🛠️ Tech Stack
 
 Python · Pandas · NumPy · Matplotlib · Seaborn
 
 ## 📬 Contact
 
-**Ali Baghdadi**:
-
-[LinkedIn](https://linkedin.com/in/alibaghdadi)
-
-alibaghdadi1368@gmail.com
+Ali Baghdadi · [LinkedIn](https://linkedin.com/in/alibaghdadi) · alibaghdadi1368@gmail.com
