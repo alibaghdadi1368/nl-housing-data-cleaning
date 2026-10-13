@@ -101,7 +101,7 @@ After dropping the five unsalvageable columns, the first
 missing-value pass used a two-tier rule (impute under 10% missing,
 drop columns over 40% missing) and left a gap: several genuinely
 usable columns; average WOZ value, ownership %, building-age %,
-dwelling-type %: sat in an untreated 10–25% missing range. Because
+dwelling-type %: sat in an untreated 10-25% missing range. Because
 average WOZ value was also one of the "core fields" used to drop
 rows, this silently dropped **1,838 neighborhoods** (12.5% of the
 data) that were otherwise perfectly usable.
@@ -117,7 +117,7 @@ final version.
 
 Using the IQR method on the five remaining unbounded numeric columns
 (WOZ value, dwelling count, population, population density, address
-density), 2.5%–5.7% of neighborhoods were flagged as outliers in
+density), 2.5%-5.7% of neighborhoods were flagged as outliers in
 each column. A very expensive Amsterdam-canal neighborhood or a
 nearly-empty rural buurt is real data, not an error, so nothing is
 deleted and the original columns are never overwritten. The capped
@@ -152,11 +152,11 @@ so anyone using the file can separate measured values from estimates.
 | Average WOZ property value (median) | €418,000 |
 
 **Top 5 most expensive municipalities** (mean neighborhood WOZ value):
-1. Laren (NH.)     1188.400000
-2. Blaricum        1038.833333
-3. Wassenaar        965.809524
-4. Bloemendaal      863.454545
-5. Ouder-Amstel     823.142857
+1. Laren (NH.):        1188.400000
+2. Blaricum:           1038.833333
+3. Wassenaar:          965.809524
+4. Bloemendaal:        863.454545
+5. Ouder-Amstel:       823.142857
 
 (All well-known high-income Dutch municipalities; a solid sanity
 check that the pipeline produced sensible results.)
