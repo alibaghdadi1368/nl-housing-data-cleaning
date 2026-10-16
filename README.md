@@ -1,9 +1,83 @@
-# Dutch Housing Data Cleaning; CBS Neighborhood Statistics
+# Where can I afford to live? A data story for newcomers to the Netherlands
 
-A data cleaning project on official Dutch government housing data,
-covering price, location, housing stock, and accessibility across
-every neighborhood in the Netherlands; built with Pandas and NumPy
-for the Data & AI course at HU University of Applied Sciences Utrecht.
+When I moved from Iran to the Netherlands to work in data, finding a home was by far the hardest part.
+I wanted to live in or near Utrecht but had no idea where to start: which neighbourhoods were within
+reach, which ones I could afford, and whether I could actually rent there.
+
+This project turns the official CBS figures for all **14,729 Dutch neighbourhoods** into an interactive
+story that answers one question:
+
+> *Which neighbourhoods near the city where I work have lower housing values than the city itself,
+> and still have homes I could actually rent?*
+
+It opens on my own situation (a job in Utrecht); readers pick their own city and limits.
+Built for the *Data-Informed Story* assignment of the Data & AI course at HU University of Applied
+Sciences Utrecht.
+
+![The app: map of neighbourhood values around Utrecht](docs/app/app_map.png)
+
+## The story in four steps
+
+| Step | The reader's question | What the data shows (default: Utrecht, 40 km) |
+|---|---|---|
+| 1 | Where is it expensive around my city? | The city is not the most expensive spot; the ring around it is. |
+| 2 | Does moving further out make it cheaper? | Not at first: 10–20 km is the most expensive ring (median €551–578k vs €468k for a typical home in Utrecht). The median only drops below the city beyond ~35 km, and the spread at every distance is wider than that drop. |
+| 3 | Can I actually rent there? | Only 14% of neighbourhoods within 40 km are both lower in value than the city and have at least 15% private rentals. |
+| 4 | So where do I start looking? | 309 neighbourhoods in 49 towns, mostly Amsterdam, Almere, Utrecht itself and Amersfoort. |
+
+The app ends with what I would do with that list, and with what this data **cannot** tell you:
+rents, homes available today, travel time, or the size of a home (WOZ is per home, not per m²).
+
+![The shortlist in the app](docs/app/app_shortlist.png)
+
+## Run the app
+
+```bash
+pip install -r requirements.txt
+streamlit run app/app.py
+```
+
+Then open http://localhost:8501. The app needs **no internet**: all data is in `data/processed/`,
+and the map is drawn without online map tiles. The first load takes a few seconds; after that,
+changing a setting and pressing **Apply** updates every chart.
+
+## How it was built
+
+Four steps, each one a notebook or a script that runs top to bottom.
+The output of one step is the input of the next.
+
+| Step | File | What it does | Output |
+|---|---|---|---|
+| 1. Clean | `notebooks/01_cleaning.ipynb` | Reads the raw CBS export (long format) and the CBS/Kadaster neighbourhood map, turns them into one row per neighbourhood, handles missing values and outliers | `data/processed/buurten_story.csv` and `buurten_simplified.geojson` |
+| 2. Profile | `notebooks/02_profile.ipynb` | Centre and spread of home values, one relationship (value vs distance to the city), where a summary misleads, what the data cannot tell | Numbers and caveats in `docs/appendix/03_statistical_profile.md` |
+| 3. Storyboard | `notebooks/03_storyboard.ipynb` | The four static views of the story, the default view and how sensitive it is to each threshold | Images in `docs/storyboard/` |
+| 4. Story | `app/app.py` | The interactive story: the reader picks a city and their own limits | The Streamlit app |
+
+All rules of the story (the distance to the city, the thresholds of the default view) live in one
+place, `app/helpers.py`. Steps 2, 3 and 4 all use it, so the notebooks and the app compute exactly
+the same numbers.
+
+## Data notes
+
+Everything behind the story, in one document: **[docs/DATA_NOTES.md](docs/DATA_NOTES.md)**
+
+| Part | File |
+|---|---|
+| Provenance and ethics | [00_provenance_ethics.md](docs/appendix/00_provenance_ethics.md) |
+| Brief: question and audience | [01_brief.md](docs/appendix/01_brief.md) |
+| Cleaning log | [02_cleaning_log.md](docs/appendix/02_cleaning_log.md) |
+| Statistical profile and caveat | [03_statistical_profile.md](docs/appendix/03_statistical_profile.md) |
+| Storyboard | [04_storyboard.md](docs/appendix/04_storyboard.md) |
+| What the data cannot tell | [05_limits.md](docs/appendix/05_limits.md) |
+| AI use | [06_ai_use_note.md](docs/appendix/06_ai_use_note.md) · [ai_build_log.md](docs/appendix/ai_build_log.md) |
+
+---
+
+# Part 1: Cleaning the CBS data
+
+The story is built on an earlier cleaning project on the same data. The scripts in `src/` are kept
+unchanged as the record of that first attempt; `notebooks/01_cleaning.ipynb` is the corrected and
+extended version used by the story.
 
 ## 📊 Data Source
 
@@ -15,20 +89,22 @@ for districts and neighborhoods), table **86165NED**.
 - Direct download: https://datasets.cbs.nl/CSV/CBS/nl/86165NED
 - License: CC-BY 4.0
 
-## 🎯 What This Project Does
+For the story I added the **CBS/Kadaster Wijk- en buurtkaart 2025 v1** (neighbourhood boundaries):
+https://www.cbs.nl/nl-nl/dossier/nederland-regionaal/geografische-data/wijk-en-buurtkaart-2025
+
+## 🎯 What the Cleaning Does
 
 1. Loads CBS's raw export and reshapes it from a long (EAV) format
    into an analysis-ready wide table
-2. Selects 21 measures relevant to housing: location, price, housing
-   stock, ownership type, and accessibility (a 22nd, standardized
-   income, turned out not to exist in the 2025 release)
+2. Selects the measures relevant to housing: location, price, housing
+   stock, ownership type (including the split between housing corporations
+   and other landlords), and distance to amenities
 3. Filters to neighborhood (*buurt*) level: 14,729 neighborhoods
-4. Investigates and treats missing values, including a real data
-   availability gap discovered along the way (see below)
+4. Investigates and treats missing values
 5. Detects outliers using the IQR method and adds capped copies of
-   the affected columns, with before/after visualizations
-6. Produces a clean, 14,729-row analysis-ready CSV that keeps the real
-   values and marks every imputed one
+   the affected columns
+6. Joins the neighbourhood map and produces a 14,729-row table that keeps
+   the real values and marks every imputed one
 
 ## 🧭 The Real Data Pipeline (and the problems solved along the way)
 
@@ -53,7 +129,7 @@ row per neighborhood with all attributes as columns. To get a usable
 housing table, I had to:
 
 - Search `MeasureCodes.csv` (438 available measures) by keyword to
-  find the exact codes for the 21 measures I actually needed (e.g.
+  find the exact codes for the measures I actually needed (e.g.
   `M001642` = average WOZ property value, `D000028` = distance to a
   GP practice)
 - Pivot `Observations.csv` on those codes; separately for numeric
@@ -63,8 +139,8 @@ housing table, I had to:
 - Join in the human-readable neighborhood name from
   `WijkenEnBuurtenCodes.csv`
 
-This produced an 18,495-row × 23-column wide table covering every
-region level (country, municipality, district, neighborhood) at once.
+This produced an 18,495-row wide table covering every region level
+(country, municipality, district, neighborhood) at once.
 
 ### 3. Filtering to the right granularity
 
@@ -99,14 +175,13 @@ were hit, at every region level.
 | schools within 3km | 12,681 | 71.7% | 0.0% |
 
 78,112 values were lost this way. No other measure contains a comma, so
-the rest of the first pipeline is unaffected. The scripts in `src/` are
-kept unchanged as the record of the first attempt; the notebook is the
-corrected version. What I take from it: `errors="coerce"` hides errors,
-so I now always count how many values it turned into NaN.
+the rest of the first pipeline is unaffected. What I take from it:
+`errors="coerce"` hides errors, so I now always count how many values
+it turned into NaN.
 
 ### 5. Missing values: three documented decision tiers
 
-After dropping the five unsalvageable columns, the first
+In the first pipeline, after dropping the five distance columns, the first
 missing-value pass used a two-tier rule (impute under 10% missing,
 drop columns over 40% missing) and left a gap: several genuinely
 usable columns; average WOZ value, ownership %, building-age %,
@@ -120,11 +195,13 @@ impute with the municipality-level median**, rather than a national
 median, since housing stock varies enormously between
 municipalities). Re-running the pipeline with the corrected logic
 recovered all of those neighborhoods: **0 rows were dropped** in the
-final version.
+final version. The notebook uses the same three tiers; with the comma
+fixed, the distance columns now fall under the imputation tier (about
+5% missing) instead of being dropped.
 
 ### 6. Outliers: flagged and capped in separate columns
 
-Using the IQR method on the five remaining unbounded numeric columns
+Using the IQR method on the five unbounded numeric columns
 (WOZ value, dwelling count, population, population density, address
 density), 2.5%-5.7% of neighborhoods were flagged as outliers in
 each column. A very expensive Amsterdam-canal neighborhood or a
@@ -145,7 +222,7 @@ Every value filled in by the municipality-median rule is listed in an
 `imputed_fields` column (for example `avg_woz_value_k_eur;pct_rental`),
 so anyone using the file can separate measured values from estimates.
 
-## 📈 Final Results
+## 📈 Results of the First Cleaning Project (`src/`)
 
 | | Value |
 |---|---|
@@ -157,15 +234,19 @@ so anyone using the file can separate measured values from estimates.
 | Final dataset (with `*_capped` columns) | 14,729 rows × 23 columns |
 | Neighborhoods with at least one imputed value | 1,838 |
 | Total population (real values) | 18,044,120 |
-| Average WOZ property value (mean) | €444,994.195 |
+| Average WOZ property value (mean) | €444,994 |
 | Average WOZ property value (median) | €418,000 |
 
-**Top 5 most expensive municipalities** (mean neighborhood WOZ value):
-1. Laren (NH.):        1188.400000
-2. Blaricum:           1038.833333
-3. Wassenaar:          965.809524
-4. Bloemendaal:        863.454545
-5. Ouder-Amstel:       823.142857
+The notebook version for the story (with the rental split and the distance
+columns) has 1,842 neighbourhoods with at least one estimated value and the
+same total population of 18,044,120.
+
+**Top 5 most expensive municipalities** (mean neighborhood WOZ value, k€):
+1. Laren (NH.): 1,188
+2. Blaricum: 1,039
+3. Wassenaar: 966
+4. Bloemendaal: 863
+5. Ouder-Amstel: 823
 
 (All well-known high-income Dutch municipalities; a solid sanity
 check that the pipeline produced sensible results.)
@@ -174,50 +255,55 @@ check that the pipeline produced sensible results.)
 
 | Path | Purpose |
 |---|---|
-| `src/01_explore.py` | Initial inspection of the raw download |
-| `src/02_find_measure_codes.py` | Search 438 CBS measures by keyword to find the 21 needed |
-| `src/03_build_wide_table.py` | Pivot the long EAV format into a wide table |
-| `src/04_filter_neighborhoods.py` | Filter to neighborhood (Buurt) level |
-| `src/05_handling_missing.py` | First missing-value pass (two-tier rule) |
-| `src/06_diagnostic_check_access_coverage.py` | Diagnostic that disproved the granularity theory |
-| `src/07_handling_missing_revised.py` | Corrected three-tier missing-value handling |
-| `src/08_handle_outliers.py` | IQR-based outlier detection; capped copies in `*_capped` columns |
-| `src/09_summary_report.py` | Before/after summary statistics |
-| `data/processed/nl_housing_clean.csv` | Final cleaned dataset (14,729 × 23) |
-| `docs/` | Before/after outlier boxplots |
+| `app/app.py` | The interactive story (Streamlit) |
+| `app/helpers.py` | Shared rules: data loading, distance to the city, default thresholds |
+| `notebooks/01_cleaning.ipynb` | Raw CBS export + map → `buurten_story.csv` (corrected pipeline) |
+| `notebooks/02_profile.ipynb` | Statistical profile: centre, spread, one relationship, caveats |
+| `notebooks/03_storyboard.ipynb` | Four storyboard views, default view and sensitivity table |
+| `data/processed/buurten_story.csv` | Cleaned neighbourhood table used by the story |
+| `data/processed/buurten_simplified.geojson` | Simplified neighbourhood shapes for the app |
+| `docs/DATA_NOTES.md` | All data notes in one document (built by `docs/build_data_notes.sh`) |
+| `docs/appendix/` | The separate notes: provenance, brief, cleaning log, profile, storyboard, limits, AI use |
+| `docs/storyboard/` | Storyboard images |
+| `docs/app/` | Screenshots of the app |
+| `src/01_explore.py` … `src/09_summary_report.py` | The first cleaning pipeline (kept as the record of the first attempt) |
+| `data/processed/nl_housing_clean.csv` | Output of the first pipeline (14,729 × 23) |
+| `docs/before_*.png`, `docs/after_*.png` | Before/after outlier boxplots |
 
-`data/raw/` and `data/interim/` are excluded via `.gitignore`; they're
-large and fully reproducible by re-running the pipeline.
+`data/raw/`, `data/interim/` and `data/geo/` are excluded via `.gitignore`; they're
+large and fully reproducible with the commands below.
 
-## 🚀 How to Reproduce
+## 🚀 How to Reproduce Everything
 
 ```bash
-conda create -n housing python=3.10 -y
-conda activate housing
+conda create -n hu python=3.12 -y
+conda activate hu
 pip install -r requirements.txt
 
-mkdir -p data/raw data/interim
+# 1. CBS statistics (a ZIP, despite the .csv name)
+mkdir -p data/raw data/geo
 curl -L -A "Mozilla/5.0" -o data/raw/86165NED.zip "https://datasets.cbs.nl/CSV/CBS/nl/86165NED"
-cd data/raw && unzip 86165NED.zip && cd ../../src
+(cd data/raw && unzip -o 86165NED.zip)
 
-python 01_explore.py
-python 02_find_measure_codes.py
-python 03_build_wide_table.py
-python 04_filter_neighborhoods.py
-python 05_handling_missing.py
-python 06_diagnostic_check_access_coverage.py
-python 07_handling_missing_revised.py
-python 08_handle_outliers.py
-python 09_summary_report.py
+# 2. CBS/Kadaster neighbourhood map 2025
+curl -L -o data/geo/WijkBuurtkaart_2025_v1.zip "https://geodata.cbs.nl/files/Wijkenbuurtkaart/WijkBuurtkaart_2025_v1.zip"
+(cd data/geo && unzip -o WijkBuurtkaart_2025_v1.zip)
+
+# 3. Notebooks, in order (each one runs top to bottom)
+jupyter nbconvert --to notebook --execute --inplace notebooks/01_cleaning.ipynb
+jupyter nbconvert --to notebook --execute --inplace notebooks/02_profile.ipynb
+jupyter nbconvert --to notebook --execute --inplace notebooks/03_storyboard.ipynb
+
+# 4. The app
+streamlit run app/app.py
 ```
 
-`05_handling_missing.py` and `06_diagnostic_check_access_coverage.py` are
-kept to document the first attempt and the diagnostic; the final pipeline
-uses `07`. Running them is harmless.
+To rerun the first pipeline instead, run the scripts in `src/` in order from inside `src/`
+(`05` and `06` document the first attempt and the diagnostic; the final pipeline uses `07`).
 
 ## 🛠️ Tech Stack
 
-Python · Pandas · NumPy · Matplotlib · Seaborn
+Python · Pandas · NumPy · GeoPandas · Matplotlib · Seaborn · Plotly · Streamlit · Jupyter
 
 ## 📬 Contact
 
