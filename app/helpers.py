@@ -53,3 +53,47 @@ def weighted_median(values, weights):
     v, w = v[order], w[order]
     cum = np.cumsum(w)
     return float(v[np.searchsorted(cum, cum[-1] / 2)])
+
+
+# ---------------------------------------------------------------------------
+# The default view of the story. Every threshold is here, in one place, so the
+# storyboard and the app use the same definition and I can defend each number.
+# ---------------------------------------------------------------------------
+DEFAULTS = {
+    "max_km": 40,               # straight line; roughly the edge of a daily commute
+    "min_private_rent_pct": 15, # at least ~1 in 7 homes rented from a non-corporation landlord
+    "max_urbanity": 3,          # CBS class 1-3 = at least "matig stedelijk" (>= 1,000 addresses/km2)
+    "max_supermarket_km": 1.0,  # a large supermarket within walking distance (by road)
+    "min_dwellings": 50,        # skip tiny neighbourhoods where an average says little
+    "include_estimated": False, # only neighbourhoods where WOZ and rental share were measured
+}
+
+
+def city_typical_woz(df, municipality):
+    """Typical home value in the city itself: dwelling-weighted median, measured values only."""
+    c = df[(df["municipality"] == municipality) & ~df["woz_estimated"]]
+    return weighted_median(c["avg_woz_value_k_eur"], c["dwelling_count"])
+
+
+def candidates(df, municipality, **overrides):
+    """
+    Neighbourhoods a newcomer working in `municipality` could look at first:
+    within reach, lower value than a typical home in the city, a real share of
+    private rentals, urban enough to have shops nearby.
+    Returns (table with a `candidate` column, the settings used, the city's typical WOZ).
+    """
+    s = {**DEFAULTS, **overrides}
+    d = add_distance(df, municipality)
+    city_woz = city_typical_woz(d, municipality)
+    ok = (
+        (d["dist_to_city_km"] <= s["max_km"])
+        & (d["avg_woz_value_k_eur"] < city_woz)
+        & (d["pct_rent_private"] >= s["min_private_rent_pct"])
+        & (d["urbanity_level"] <= s["max_urbanity"])
+        & (d["dist_supermarket_km"] <= s["max_supermarket_km"])
+        & (d["dwelling_count"] >= s["min_dwellings"])
+    )
+    if not s["include_estimated"]:
+        ok &= ~d["woz_estimated"] & ~d["rent_estimated"]
+    d["candidate"] = ok
+    return d, s, city_woz
