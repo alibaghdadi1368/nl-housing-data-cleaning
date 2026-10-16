@@ -2,7 +2,7 @@
 
 Ali Baghdadi · HU Utrecht · Data & AI · A Data-Informed Story
 
-Generated 2026-10-16 from the files in `docs/appendix/`.
+Generated 2026-10-17 from the files in `docs/appendix/`.
 
 **Contents:** 0 Provenance and ethics · 1 Brief · 2 Cleaning log · 3 Statistical profile · 4 Storyboard · 5 Limits · 6 AI use · Appendix: AI-build log
 
