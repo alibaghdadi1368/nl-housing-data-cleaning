@@ -72,28 +72,37 @@ The wide table mixes four region levels in one file. I filtered to
 `region_type == "Buurt"` (neighborhood), leaving **14,729 rows**, and
 dropped `region_code`, a duplicate of the existing region identifier.
 
-### 4. A real data availability gap: the accessibility measures
+### 4. A data gap that turned out to be my own parsing bug
 
-The five distance-to-amenity measures I originally selected
-(distance to a GP practice, supermarket, daycare, school, and number
-of schools within 3km) were **86–94% missing**. I initially assumed
-this was because CBS only publishes reliable distance statistics at
-a higher aggregation level than individual neighborhoods, and wrote
-a diagnostic script (`06_diagnostic_check_access_coverage.py`) to
-check the missing rate for these same measures at *Wijk* (district)
-and *Gemeente* (municipality) level too.
+The five distance-to-amenity measures (distance to a GP practice,
+supermarket, daycare, school, and number of schools within 3km) looked
+**72–94% missing**. I first assumed CBS only publishes them at a higher
+level, wrote `06_diagnostic_check_access_coverage.py` to check, saw the
+same gap at district and municipality level, and concluded it was a
+real gap in the 2025 release. I dropped the columns and used
+`urbanity_level` and `address_density` as a proxy instead.
 
-The result disproved that theory: missing rates stayed at
-86–94% at every level, including municipality. This is a genuine
-data availability gap in this specific 2025 release, not a
-granularity artifact; CBS distance-to-amenity measures have had
-known coverage issues in recent editions. Rather than fabricate or
-force-impute data that mostly doesn't exist, I dropped these five
-columns and used two CBS's own, well-populated (<1% missing)
-urbanicity indicators: `urbanity_level` (*Mate van stedelijkheid*)
-and `address_density` (*Omgevingsadressendichtheid*), as the
-accessibility signal instead, since higher urbanity density is
-itself CBS's standard proxy for amenity proximity.
+That conclusion was wrong. When I rebuilt the pipeline as a notebook
+(`notebooks/01_cleaning.ipynb`) for the data story, the same rule
+suddenly dropped zero columns. The cause: CBS writes decimals with a
+comma (`1,2` km). `pd.to_numeric(..., errors="coerce")` does not read a
+comma, and turns every such value into NaN **without a warning**.
+Distances are the only measures with decimals, which is why only they
+were hit, at every region level.
+
+| Measure | values with a comma | missing, old way | missing, comma -> point |
+|---|---|---|---|
+| distance to supermarket | 16,251 | 91.9% | 0.0% |
+| distance to GP practice | 16,174 | 91.5% | 0.0% |
+| distance to daycare | 16,596 | 93.9% | 0.0% |
+| distance to school | 16,410 | 92.8% | 0.0% |
+| schools within 3km | 12,681 | 71.7% | 0.0% |
+
+78,112 values were lost this way. No other measure contains a comma, so
+the rest of the first pipeline is unaffected. The scripts in `src/` are
+kept unchanged as the record of the first attempt; the notebook is the
+corrected version. What I take from it: `errors="coerce"` hides errors,
+so I now always count how many values it turned into NaN.
 
 ### 5. Missing values: three documented decision tiers
 
