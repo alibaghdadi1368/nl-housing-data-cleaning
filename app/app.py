@@ -120,12 +120,22 @@ is_default = all(s[key] == DEFAULTS[key] for key in DEFAULTS) and city == defaul
 
 # ---------------------------------------------------------------- intro
 st.title("Where can I afford to live?")
-st.markdown(
-    f"You just got a job in **{city}** and need a place to live. Rents are not published per "
-    "neighbourhood, but home values are. This story uses the official CBS figures for all 14,729 "
-    "Dutch neighbourhoods to find places that are **lower in value than a typical home in the city** "
-    "and where you could **actually rent** from a private landlord."
-)
+st.markdown(f"""
+I'm Ali. I moved from Iran to the Netherlands to work with data in Europe's tech scene.
+Of everything that came with moving here, **finding a home was by far the hardest part.**
+I wanted to live in Utrecht, or at least close to it, but I had no idea where to start looking.
+I didn't know which neighbourhoods were within reach, which ones I could afford, or what to check
+besides the rent: how far is the train, is there a supermarket around the corner?
+
+This story is what I wish I had back then. It uses the official CBS figures for all **14,729
+Dutch neighbourhoods** to answer one question:
+
+> *Which neighbourhoods near the city where I work have lower housing values than the city itself,
+> and still have homes I could actually rent?*
+
+It opens on my own situation: a job in **Utrecht**. Pick your own city and your own limits in the
+sidebar on the left, press **Apply**, and every chart and the list at the end follow you.
+""")
 if not is_default:
     st.info("You changed the settings. Use *Back to the default view* in the sidebar to return to the "
             "story as written.")
@@ -138,6 +148,8 @@ c3.metric("…spread over", f"{cand['municipality'].nunique()} towns")
 
 # ---------------------------------------------------------------- step 1: map
 st.header(f"1 · Where is it expensive around {city}?")
+st.markdown("My first instinct was simple: the city is expensive, so look around it. "
+            "Darker blue means a higher average home value (WOZ).")
 colour_by = st.radio("Colour the map by", ["home value", "fits my needs"], horizontal=True)
 RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
 
@@ -226,6 +238,8 @@ st.caption("Darker blue = higher average WOZ value. Big rural neighbourhoods fil
 
 # ---------------------------------------------------------------- step 2: distance
 st.header("2 · Does moving further out make it cheaper?")
+st.markdown("I assumed that every kilometre away from the city would make housing cheaper. "
+            "This chart tests that assumption, ring by ring.")
 near = d[(d["dist_to_city_km"] <= 50) & ~d["woz_estimated"]].copy()
 near["band"] = pd.cut(near["dist_to_city_km"], bins=range(0, 55, 5), right=False)
 b = near.groupby("band", observed=True)["avg_woz_value_k_eur"].quantile([0.25, 0.5, 0.75]).unstack()
@@ -258,6 +272,9 @@ if len(b):
 
 # ---------------------------------------------------------------- step 3: trade-off
 st.header("3 · Can I actually rent there?")
+st.markdown("A cheap area is no use if nobody rents homes out there. As a newcomer you will not get a "
+            "social-housing home for years, so what matters is the share of homes rented from **private "
+            "landlords**. Each dot is one neighbourhood within your distance.")
 zone = d[(d["dist_to_city_km"] <= max_km) & (d["dwelling_count"] >= min_homes)]
 if not incl_est:
     zone = zone[~zone["woz_estimated"] & ~zone["rent_estimated"]]
@@ -288,6 +305,8 @@ if len(zone):
 
 # ---------------------------------------------------------------- step 4: shortlist
 st.header("4 · So where do I start looking?")
+st.markdown("These are the neighbourhoods that meet **all** your conditions: lower value than a typical "
+            "home in the city, enough private rentals, urban enough, and a large supermarket close by.")
 if cand.empty:
     st.warning("No neighbourhood meets all your conditions. Try a larger distance or a lower rental share.")
 else:
@@ -319,14 +338,30 @@ else:
                        file_name=f"neighbourhoods_{city}.csv", mime="text/csv")
 
 # ---------------------------------------------------------------- step 5: limits
-st.header("5 · What this cannot tell you")
+st.header("5 · What I would do with this list")
+st.markdown(f"""
+1. **Pick three to five neighbourhoods** from the table, not fifty. Sort by *km to city* or *WOZ* and
+   look at the ones that fit how you want to live.
+2. **Check the trip yourself.** This data has no train or bus stations, only a straight line to
+   {city}. Look up the real door-to-door journey in a journey planner before you fall in love with a place.
+3. **Search for rentals only there.** Set the housing sites to those neighbourhoods or postcodes. It
+   saves a lot of time and disappointment.
+4. **Be careful with the extremes.** A neighbourhood with 90-100% private rentals can be a student or
+   care complex, and a very low WOZ often just means small flats.
+
+That is the honest promise of this tool: not "here is your home", but **a much better place to start
+than I had.**
+""")
+
+st.header("6 · What this cannot tell you")
 st.markdown("""
 - **Rent.** WOZ is the municipality's valuation of a home for tax, not a rent and not an asking price.
 - **Availability.** A high private-rental share means those homes exist, not that one is free today.
 - **One home.** These are neighbourhood averages; a single home can be far above or below them.
-- **Travel time.** Distance is a straight line, not a train or bike route.
+- **Travel time.** Distance is a straight line to the city, not a train, bus or bike route. The CBS data I used has no distance to train stations.
 - **Size.** WOZ is per home, not per m²: a neighbourhood of small flats looks cheaper than it is per m².
 - **Social housing.** "Corporation-owned" is about the owner, not the rent; CBS did not look at rent levels.
+- **Which supermarket.** "Large supermarket" means any store of at least 150 m² selling daily goods, not a specific chain.
 """)
 st.caption("Data: CBS *Kerncijfers wijken en buurten 2025* (86165NED) and CBS/Kadaster *Wijk- en buurtkaart 2025*, "
            "CC BY 4.0. Cleaning and analysis: notebooks 01–03 in this repository.")
